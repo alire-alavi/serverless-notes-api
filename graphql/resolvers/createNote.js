@@ -14,7 +14,8 @@ export function request(ctx) {
 }
 
 export function response(ctx) {
-  if (ctx.$metadata.httpStatusCode == 200 && !ctx.error) {
+
+  if (ctx.result.$metadata.httpStatusCode == 200 && !ctx.error) {
     return ctx.arguments.input;
   }
   return ctx.result;
