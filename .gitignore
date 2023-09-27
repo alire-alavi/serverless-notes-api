@@ -1,0 +1,13 @@
+# package directories
+node_modules
+jspm_packages
+dynamodb_local.tar.gz
+.context
+.dynamodb_local
+.dynamodb
+.env
+coverage
+docker
+
+# Serverless directories
+.serverless

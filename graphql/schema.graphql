@@ -1,0 +1,33 @@
+input CreateNoteInput {
+	title: String!
+	content: String
+}
+
+type Note {
+	id: ID!
+	title: String
+	content: String
+	createdAt: AWSTimestamp
+	modifiedAt: AWSTimestamp
+}
+
+input UpdateNoteInput {
+	title: String
+	content: String
+}
+
+type Mutation {
+	createNote(input: CreateNoteInput): Note
+	updateNote(id: ID!, input: UpdateNoteInput): Note
+	deleteNote(id: ID!): Note
+}
+
+type Query {
+	listNotes: [Note]!
+	getNote(id: ID!): Note!
+}
+
+schema {
+	query: Query
+	mutation: Mutation
+}

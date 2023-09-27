@@ -1,0 +1,32 @@
+service: notes-app-backend
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: dev
+  region: us-east-1
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - "dynamodb:PutItem"
+            - "dynamodb:BatchGetItem"
+            - "dynamodb:DeleteItem"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+            - "dynamodb:UpdateItem"
+          Resource: !GetAtt NotesTable.Arn
+
+plugins:
+  - serverless-offline
+
+functions:
+  NotesBackend:
+    handler: graphql/index.handler
+
+resources:
+  Resources:
+    ${file(resources.yml)}

@@ -1,0 +1,283 @@
+NotesTable:
+  Type: AWS::DynamoDB::Table
+  Properties: 
+    AttributeDefinitions: 
+      - AttributeName: "id"
+        AttributeType: "S"
+    BillingMode: PAY_PER_REQUEST
+    TableName: Notes 
+    KeySchema:
+      - AttributeName: "id"
+        KeyType: "HASH"
+    Tags: 
+      - Key: Name
+        Value: Note
+
+AppSyncLambdaExecutionRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: use-east-1-notes-app-backend-dev-appsync-lambda-exec-role
+    AssumeRolePolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - appsync.amazonaws.com
+          Action: sts:AssumeRole
+    Policies:
+      - PolicyName: us-east-1-notes-backend-appsync-lambda-exec-policy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: "lambda:invokeFunction"
+              Resource: !GetAtt NotesBackendLambdaFunction.Arn
+
+# AppSyncRoleLambdaExecution:
+#   Type: AWS::IAM::Role
+#   Properties:
+#     RoleName: usa-east-1-notes-app-backend-dev-appsync-role
+#     AssumeRolePolicyDocument:
+#       Version: "2012-10-17"
+#       Statement:
+#         Effect: Allow
+#         Principal:
+#           Service:
+#             - appsync.amazonaws.com
+#           Action: sts:AssumeRole
+#     Policies:
+#       - PolicyName: NotesTableDynamoAccess
+#         PolicyDocument:
+#           Version: "2012-10-17"
+#           Statement:     
+#             Effect: Allow
+#             Action: "lambda:invokeFunction"
+#             Resource: !GetAtt [ NotesBackendLambdaFunction, Arn]
+#   DependsOn:
+#     - NotesBackendLambdaFunction
+
+NoteAppSyncDataSource:
+  Type: AWS::AppSync::DataSource
+  Properties:
+    ApiId: !GetAtt NotesAPI.ApiId
+    Name: NoteAppSyncDataSource
+    Type: AWS_LAMBDA
+    ServiceRoleArn: !GetAtt AppSyncLambdaExecutionRole.Arn
+    LambdaConfig:
+      LambdaFunctionArn: !GetAtt NotesBackendLambdaFunction.Arn
+  DependsOn:
+    - NotesBackendLambdaFunction
+
+NotesAPI:
+  Type: AWS::AppSync::GraphQLApi
+  Properties:
+    AuthenticationType: API_KEY
+    Name: NotesAppsyncAPI
+NotesAPISchema:
+  Type: AWS::AppSync::GraphQLSchema
+  Properties:
+    ApiId: !GetAtt NotesAPI.ApiId
+    Definition: |
+     input CreateNoteInput {
+        title: String!
+        content: String
+      }
+
+      type Note {
+        id: ID!
+        title: String
+        content: String
+        createdAt: AWSTimestamp
+        modifiedAt: AWSTimestamp
+      }
+
+      input UpdateNoteInput {
+        title: String
+        content: String
+      }
+
+      type Mutation {
+        createNote(input: CreateNoteInput): Note
+        updateNote(id: ID!, input: UpdateNoteInput): Note
+        deleteNote(id: ID!): Note
+      }
+
+      type Query {
+        listNotes: [Note]
+        getNote(id: ID!): Note!
+      }
+
+      schema {
+        query: Query
+        mutation: Mutation
+      }
+
+CreateNoteResolver:
+  Type: AWS::AppSync::Resolver
+  Properties:
+    ApiId: !GetAtt NotesAPI.ApiId
+    FieldName: createNote
+    TypeName: Mutation
+    DataSourceName: NoteAppSyncDataSource
+    Runtime:
+      Name: 'APPSYNC_JS'
+      RuntimeVersion: '1.0.0'
+    Code: |
+      import { util } from '@aws-appsync/utils';
+
+      export function request(ctx) {
+        console.log(ctx);
+        // TODO: handle empty values for title
+        const args = ctx.arguments.input
+        args.id = util.autoId();
+        args.createdAt = util.time.nowEpochSeconds();
+        args.modifiedAt = util.time.nowEpochSeconds();
+        return {
+          operation: 'Invoke',
+          payload: { field: ctx.info.fieldName, arguments: args },
+        };
+      }
+
+      export function response(ctx) {
+        if (ctx.$metadata.httpStatusCode == 200 && !ctx.error) {
+          return ctx.arguments.input;
+        }
+        return ctx.result;
+      }
+
+  DependsOn:
+    - NotesAPISchema
+    - NoteAppSyncDataSource
+    - NotesTable
+
+ListNotesResolver:
+  Type: AWS::AppSync::Resolver
+  Properties:
+    ApiId: !GetAtt NotesAPI.ApiId
+    FieldName: listNotes
+    TypeName: Query
+    DataSourceName: NoteAppSyncDataSource
+    Runtime:
+      Name: 'APPSYNC_JS'
+      RuntimeVersion: '1.0.0'
+    Code: |
+      export function request(ctx) {
+        const args = [
+          "id",      
+          "title",      
+          "content",      
+          "createdAt",      
+          "modifiedAt"
+        ]
+        const keyObj = { "#id": "id" };
+        return {
+          operation: 'Invoke',
+          payload: { field: ctx.info.fieldName, arguments: args, key: keyObj },
+        };
+      }
+
+      export function response(ctx) {
+        return ctx.result.Items;
+      }
+
+
+
+  DependsOn:
+    - NotesAPISchema
+    - NoteAppSyncDataSource
+    - NotesTable
+
+GetItemResolver:
+  Type: AWS::AppSync::Resolver
+  Properties:
+    ApiId: !GetAtt NotesAPI.ApiId
+    FieldName: getNote
+    TypeName: Query
+    DataSourceName: NoteAppSyncDataSource
+    Runtime:
+      Name: 'APPSYNC_JS'
+      RuntimeVersion: '1.0.0'
+    Code: |
+      export function request(ctx) {
+        const args = ctx.args
+        return {
+          operation: 'Invoke',
+          payload: { field: ctx.info.fieldName, arguments: args},
+        };
+      }
+
+      export function response(ctx) {
+        return ctx.result.Item;
+      }
+
+
+  DependsOn:
+    - NotesAPISchema
+    - NoteAppSyncDataSource
+    - NotesTable
+
+UpdateNoteResolver:
+  Type: AWS::AppSync::Resolver
+  Properties:
+    ApiId: !GetAtt NotesAPI.ApiId
+    FieldName: updateNote
+    TypeName: Mutation 
+    DataSourceName: NoteAppSyncDataSource
+    Runtime:
+      Name: 'APPSYNC_JS'
+      RuntimeVersion: '1.0.0'
+    Code: |
+      import { util } from '@aws-appsync/utils';
+
+      export function request(ctx) {
+        console.log(ctx);
+        let args = ctx.args.input
+        args.modifiedAt = util.time.nowEpochSeconds();
+        const keyObj = { "id": ctx.arguments.id }
+        return {
+          operation: 'Invoke',
+          payload: { field: ctx.info.fieldName, arguments: args, key: keyObj },
+        };
+      }
+
+      export function response(ctx) {
+        return ctx.result.Attributes;
+      }
+
+  DependsOn:
+    - NotesAPISchema
+    - NoteAppSyncDataSource
+    - NotesTable
+
+DeleteNoteResolver:
+  Type: AWS::AppSync::Resolver
+  Properties:
+    ApiId: !GetAtt NotesAPI.ApiId
+    FieldName: deleteNote
+    TypeName: Mutation 
+    DataSourceName: NoteAppSyncDataSource
+    Runtime:
+      Name: 'APPSYNC_JS'
+      RuntimeVersion: '1.0.0'
+    Code: |
+      export function request(ctx) {
+        const args = ctx.args
+        return {
+          operation: 'Invoke',
+          payload: { field: ctx.info.fieldName, arguments: args },
+        };
+      }
+      
+      export function response(ctx) {
+        if (ctx.result.Attributes) { 
+          return ctx.result.Attributes;
+        }
+        util.error("The requested ID Doesnot Exist", "NotFound", ctx.result)
+        return ctx.error
+      }
+
+  DependsOn:
+    - NotesAPISchema
+    - NoteAppSyncDataSource
+    - NotesTable

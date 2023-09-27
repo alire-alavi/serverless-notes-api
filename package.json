@@ -1,0 +1,28 @@
+{
+  "name": "sls-framework-notes-taking-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "lavirez <alirezaalavirazavi@hotmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@aws-sdk/client-appsync": "^3.418.0",
+    "@vitest/coverage-v8": "^0.34.5",
+    "serverless": "^3.35.2",
+    "serverless-offline": "^12.0.4",
+    "vitest": "^0.34.5"
+  },
+  "dependencies": {
+    "@aws-appsync/utils": "^1.5.0",
+    "@aws-sdk/client-dynamodb": "^3.415.0",
+    "@aws-sdk/lib-dynamodb": "^3.415.0",
+    "@babel/eslint-parser": "^7.22.15",
+    "aws-lambda": "^1.0.7",
+    "aws-sdk": "^2.1461.0",
+    "babel-eslint": "^10.1.0",
+    "babel-preset-env": "^1.7.0"
+  },
+  "scripts": {
+    "test": "export LOCAL_DB=true && vitest"
+  }
+}
